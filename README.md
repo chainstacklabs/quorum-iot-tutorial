@@ -1,5 +1,5 @@
 # quorum-iot-tutorial
-Smart contract formatting, Quorum Public and Private Transactions with Web3 from [this tutorial](https://medium.com/p/347190e3c35f/edit)
+Smart contract from [this tutorial](https://docs.chainstack.com/tutorials/food-supply-temperature-control-on-quorum).
 
 # Quick Start
 Install dependencies
