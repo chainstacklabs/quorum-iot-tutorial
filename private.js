@@ -69,7 +69,7 @@ async function getContract(web3, contractAddress) {
 async function deployContract(web3, publicKey) {
   const address = await getAddress(web3);
   const contract = new web3.eth.Contract(temperatureMonitor.interface);
-
+  await web3.eth.personal.unlockAccount(address,'',1000)
   return contract.deploy({
     data: temperatureMonitor.bytecode,
   })
@@ -97,7 +97,6 @@ async function setTemperature(web3, contractAddress, publicKey, temp) {
 
 async function getTemperature(web3, contractAddress) {
   const myContract = await getContract(web3, contractAddress);
-
   return myContract.methods.get().call().then(result => result);
 }
 
