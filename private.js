@@ -60,7 +60,7 @@ function formatContract() {
 
 async function getContract(web3, contractAddress) {
   const address = await getAddress(web3);
-
+  await web3.eth.personal.unlockAccount(address,'',1000)
   return new web3.eth.Contract(temperatureMonitor.interface, contractAddress, {
     defaultAccount: address,
   });
@@ -68,8 +68,9 @@ async function getContract(web3, contractAddress) {
 
 async function deployContract(web3, publicKey) {
   const address = await getAddress(web3);
-  const contract = new web3.eth.Contract(temperatureMonitor.interface);
   await web3.eth.personal.unlockAccount(address,'',1000)
+  const contract = new web3.eth.Contract(temperatureMonitor.interface);
+
   return contract.deploy({
     data: temperatureMonitor.bytecode,
   })
@@ -85,6 +86,7 @@ async function deployContract(web3, publicKey) {
 
 async function setTemperature(web3, contractAddress, publicKey, temp) {
   const address = await getAddress(web3);
+  await web3.eth.personal.unlockAccount(address,'',1000)
   const myContract = await getContract(web3, contractAddress);
 
   return myContract.methods.set(temp).send({
@@ -97,7 +99,10 @@ async function setTemperature(web3, contractAddress, publicKey, temp) {
 
 async function getTemperature(web3, contractAddress) {
   const myContract = await getContract(web3, contractAddress);
-  return myContract.methods.get().call().then(result => result);
+  await web3.eth.personal.unlockAccount(address,'',1000)
+  return myContract.methods.get().call()
+  .then(result => result)
+  .catch(error => null)
 }
 
 main()
