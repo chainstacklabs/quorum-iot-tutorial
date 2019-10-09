@@ -1,109 +1,97 @@
-const dotenv = require('dotenv');
-const Web3 = require('web3');
-const fs = require('fs');
-const solc = require('solc');
+const { compileContract } = require('./utils/compiler.js');
+const {
+  node1,
+  node2,
+  node3,
+} = require('./utils/environment.js');
 
 let temperatureMonitor = {};
 
-dotenv.config();
-
-const raft1Node = new Web3(
-  new Web3.providers.HttpProvider(process.env.RPC1), null, {
-    transactionConfirmationBlocks: 1,
-  },
-);
-
-const raft2Node = new Web3(
-  new Web3.providers.HttpProvider(process.env.RPC2), null, {
-    transactionConfirmationBlocks: 1,
-  },
-);
-
-const raft3Node = new Web3(
-  new Web3.providers.HttpProvider(process.env.RPC3), null, {
-    transactionConfirmationBlocks: 1,
-  },
-);
-
 const main = async () => {
-  const {interface, bytecode} = formatContract();
+  const {interface, bytecode} = compileContract('temperatureMonitor.sol');
   temperatureMonitor = {
-    interface: JSON.parse(interface),
-    bytecode: `0x${bytecode}`,
+    interface,
+    bytecode,
   };
 
-  console.log('Formatted Contract:', temperatureMonitor);
-
-  const contractAddress = await deployContract(raft1Node, process.env.PK2);
+  const contractAddress = await deployContract({
+    node: node1,
+    privateFor: [node2.TM_PK],
+  });
   console.log(`Contract address after deployment: ${contractAddress}`);
 
-  await setTemperature(raft3Node, contractAddress, process.env.PK1, 10);
-  const temp = await getTemperature(raft3Node, contractAddress);
-  console.log(`[Node3] temp retrieved after updating contract from external nodes: ${temp}`);
-
-  await setTemperature(raft2Node, contractAddress, process.env.PK1, 12);
-  const temp2 = await getTemperature(raft2Node, contractAddress);
-  console.log(`[Node2] temp retrieved after updating contract from internal nodes: ${temp2}`);
-
-  const temp3 = await getTemperature(raft3Node, contractAddress);
-  console.log(`[Node3] temp retrieved from external nodes after update ${temp}`);
-}
-
-function getAddress(web3) {
-  return web3.eth.getAccounts().then(accounts => accounts[0]);
-}
-
-function formatContract() {
-  const source = fs.readFileSync('./contracts/temperatureMonitor.sol', 'UTF8');
-  return solc.compile(source, 1).contracts[':TemperatureMonitor'];
-}
-
-async function getContract(web3, contractAddress) {
-  const address = await getAddress(web3);
-  await web3.eth.personal.unlockAccount(address,'',1000)
-  return new web3.eth.Contract(temperatureMonitor.interface, contractAddress, {
-    defaultAccount: address,
+  const unauthorizedStatus = await setTemperature({
+    contractAddress,
+    node: node3,
+    privateFor: [node1.TM_PK],
+    temp: 3,
   });
+  console.log(`Unauthorized - Transaction status: ${unauthorizedStatus}`);
+
+  const unauthorizedTemp = await getTemperature({
+    contractAddress,
+    node: node3,
+  });
+  console.log('Unauthorized - Retrieved contract Temperature', unauthorizedTemp);
+
+  const authorizedStatus = await setTemperature({
+    contractAddress,
+    node: node2,
+    privateFor: [node1.TM_PK],
+    temp: 18,
+  });
+  console.log(`Authorized - Transaction status: ${authorizedStatus}`);
+
+  const authorizedTemp = await getTemperature({
+    node: node2,
+    contractAddress,
+  });
+  console.log('Authorized - Retrieved contract Temperature', authorizedTemp);
 }
 
-async function deployContract(web3, publicKey) {
-  const address = await getAddress(web3);
-  await web3.eth.personal.unlockAccount(address,'',1000)
-  const contract = new web3.eth.Contract(temperatureMonitor.interface);
+function getContract(web3, contractAddress) {
+  return new web3.eth.Contract(temperatureMonitor.interface,  contractAddress);
+}
+
+async function deployContract({ node, privateFor }) {
+  await node.web3.eth.personal.unlockAccount(node.WALLET_ADDRESS, '', 1000);
+  const contract = new node.web3.eth.Contract(temperatureMonitor.interface);
 
   return contract.deploy({
     data: temperatureMonitor.bytecode,
   })
   .send({
-    from: address,
-    gas: '0x2CD29C0',
-    privateFor: [publicKey],
+      from: node.WALLET_ADDRESS,
+      gasPrice: 0,
+      gasLimit: 4300000,
+      privateFor,
+      value: 0,
   })
-  .then((contract) => {
-    return contract.options.address;
+  .on('error', console.error)
+  .then((newContractInstance) => {
+    return newContractInstance.options.address;
   });
 }
 
-async function setTemperature(web3, contractAddress, publicKey, temp) {
-  const address = await getAddress(web3);
-  await web3.eth.personal.unlockAccount(address,'',1000)
-  const myContract = await getContract(web3, contractAddress);
+async function setTemperature({ node, contractAddress, privateFor, temp }) {
+  await node.web3.eth.personal.unlockAccount(node.WALLET_ADDRESS, '', 1000);
+
+  const myContract = getContract(node.web3, contractAddress);
 
   return myContract.methods.set(temp).send({
-    from: address,
-    privateFor: [publicKey],
-  }).then((receipt) => {
+    from: node.WALLET_ADDRESS,
+    privateFor,
+  })
+  .on('error', console.error)
+  .then((receipt) => {
     return receipt.status;
   });
 }
 
-async function getTemperature(web3, contractAddress) {
-  const myContract = await getContract(web3, contractAddress);
-  const address = await getAddress(web3);
-  await web3.eth.personal.unlockAccount(address,'',1000)
-  return myContract.methods.get().call()
-  .then(result => result)
-  .catch(error => null)
+async function getTemperature({ node, contractAddress }) {
+  const myContract = getContract(node.web3, contractAddress);
+
+  return myContract.methods.get().call().then(result => result);
 }
 
 main()

@@ -1,98 +1,75 @@
-const dotenv = require('dotenv');
-const Web3 = require('web3');
-const fs = require('fs');
-const solc = require('solc');
+const { compileContract } = require('./utils/compiler.js');
+const {
+  node1,
+  node2,
+  node3,
+} = require('./utils/environment.js');
 
 let temperatureMonitor = {};
 
-dotenv.config();
-
-const raft1Node = new Web3(
-  new Web3.providers.HttpProvider(process.env.RPC1), null, {
-    transactionConfirmationBlocks: 1,
-  },
-);
-
-const raft2Node = new Web3(
-  new Web3.providers.HttpProvider(process.env.RPC2), null, {
-    transactionConfirmationBlocks: 1,
-  },
-);
-
-const raft3Node = new Web3(
-  new Web3.providers.HttpProvider(process.env.RPC3), null, {
-    transactionConfirmationBlocks: 1,
-  },
-);
-
 const main = async () => {
-  const {interface, bytecode} = formatContract();
+  const {interface, bytecode} = compileContract('temperatureMonitor.sol');
   temperatureMonitor = {
-    interface: JSON.parse(interface),
-    bytecode: `0x${bytecode}`,
+    interface,
+    bytecode,
   };
 
-  console.log('Formatted Contract:', temperatureMonitor);
-  const contractAddress = await deployContract(raft1Node);
+  const contractAddress = await deployContract(node1);
   console.log(`Contract address after deployment: ${contractAddress}`);
 
-  const status = await setTemperature(raft2Node, contractAddress, 3);
+  const status = await setTemperature({
+    node: node2,
+    contractAddress,
+    temp: 3,
+  });
   console.log(`Transaction status: ${status}`);
 
-  const temp = await getTemperature(raft3Node, contractAddress);
+  const temp = await getTemperature({
+    node: node3,
+    contractAddress,
+  });
   console.log('Retrieved contract Temperature', temp);
 }
 
-async function getContract(web3, contractAddress) {
-  const address = await getAddress(web3);
-
-  return new web3.eth.Contract(temperatureMonitor.interface, contractAddress, {
-    defaultAccount: address,
-  });
+function getContract(web3, contractAddress) {
+  return new web3.eth.Contract(temperatureMonitor.interface,  contractAddress);
 }
 
-function getAddress(web3) {
-  return web3.eth.getAccounts().then(accounts => accounts[0]);
-}
+async function deployContract(node) {
+  await node.web3.eth.personal.unlockAccount(node.WALLET_ADDRESS, '', 1000);
+  const contract = new node.web3.eth.Contract(temperatureMonitor.interface);
 
-function formatContract() {
-  const source = fs.readFileSync('./contracts/temperatureMonitor.sol', 'UTF8');
-  return solc.compile(source, 1).contracts[':TemperatureMonitor'];
-}
-
-async function deployContract(web3) {
-  const address = await getAddress(web3);
-  await web3.eth.personal.unlockAccount(address,'',1000)
-  const contract = new web3.eth.Contract(temperatureMonitor.interface);
   return contract.deploy({
     data: temperatureMonitor.bytecode,
   })
   .send({
-      from: address,
-      gas: '0x2CD29C0',
+      from: node.WALLET_ADDRESS,
+      gas: '0x1dcd6500',
+      gasPrice: '0',
   })
-  .on('transactionHash',console.log)
   .on('error', console.error)
   .then((newContractInstance) => {
     return newContractInstance.options.address;
   });
 }
 
-async function setTemperature(web3, contractAddress, temp) {
-  const myContract = await getContract(web3, contractAddress);
-  const address = await getAddress(web3);
-  await web3.eth.personal.unlockAccount(address,'',1000)
+async function setTemperature({ node, contractAddress, temp }) {
+  await node.web3.eth.personal.unlockAccount(node.WALLET_ADDRESS, '', 1000);
+
+  const myContract = getContract(node.web3, contractAddress);
+
   return myContract.methods.set(temp).send({
-    from: address
-  }).then((receipt) => {
+    from: node.WALLET_ADDRESS,
+  })
+  .on('error', console.error)
+  .then((receipt) => {
     return receipt.status;
   });
 }
 
-async function getTemperature(web3, contractAddress) {
-  const myContract = await getContract(web3, contractAddress);
-  const address = await getAddress(web3);
-  await web3.eth.personal.unlockAccount(address,'',1000)
+async function getTemperature({ node, contractAddress }) {
+  const myContract = getContract(node.web3, contractAddress);
+
   return myContract.methods.get().call().then(result => result);
 }
 
