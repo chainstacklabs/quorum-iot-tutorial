@@ -29,9 +29,9 @@ const getNonce = async (address, uri) => {
       ],
       id: 1,
     },
-  }).then(res => res.result )
+  }).then(res => res.result)
   .catch(error => new Error(error));
-}; 
+};
 
 module.exports = {
   getAccount,

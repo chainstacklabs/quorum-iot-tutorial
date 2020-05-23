@@ -32,7 +32,7 @@ const main = async () => {
 }
 
 function getContract(web3, contractAddress) {
-  return new web3.eth.Contract(temperatureMonitor.interface,  contractAddress);
+  return new web3.eth.Contract(temperatureMonitor.interface, contractAddress);
 }
 
 async function deployContract(node) {
