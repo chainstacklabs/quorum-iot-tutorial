@@ -1,18 +1,19 @@
 {
-  "name": "web3sandbox",
+  "name": "quorum-iot-tutorial",
   "version": "1.0.0",
-  "description": "Sandbox for Web3",
-  "main": "app.js",
+  "description": "",
   "dependencies": {
-    "dotenv": "^8.0.0",
-    "fs": "0.0.1-security",
-    "solc": "^0.4.25",
-    "web3": "^1.0.0-beta.55"
+    "dotenv": "^8.2.0",
+    "ethereumjs-tx": "^2.1.2",
+    "quorum-js": "^0.3.5",
+    "request-promise-native": "^1.0.8",
+    "solc": "^0.5.11",
+    "web3": "^2.0.0-alpha.1"
   },
-  "devDependencies": {},
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chainstack/quorum-iot-tutorial.git"
   },
-  "author": "",
-  "license": "ISC"
+  "author": "Chainstack",
+  "license": "Apache-2.0"
 }
