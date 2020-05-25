@@ -15,7 +15,10 @@ const main = async () => {
     bytecode,
   };
 
-  const contractAddress = await deployContract(node1, [node2.TM_PK]);
+  const contractAddress = await deployContract({
+    node: node1,
+    privateFor: [node2.TM_PK],
+  });
   console.log(`Contract deployed at address: ${contractAddress}`);
 
   const statusUnAuthorized = await setTemp({
@@ -25,7 +28,7 @@ const main = async () => {
     temp: 8,
   });
 
-  console.log(`Set Temp status from unauthorized node:  ${statusUnAuthorized}`);
+  console.log(`Set Temp status from unauthorized node: ${statusUnAuthorized}`);
   const resultUnAuthorized = await getTemp({
     contractAddress,
     node: node3,
@@ -46,7 +49,7 @@ const main = async () => {
   console.log(`Contract temperature after update: ${result}`);
 };
 
-async function deployContract(node, privateFor) {
+async function deployContract( {node, privateFor }) {
   // encode contract
   const contract = new node.web3.eth.Contract(temperatureMonitor.interface);
   const encodedABI = contract
@@ -62,18 +65,16 @@ async function deployContract(node, privateFor) {
   );
 
   const privateSignedTxHex = await serializeAndSign(node, {
-    to: '',
+    to: null,
     data: `0x${rawTxHash}`,
   });
 
   return node.txManager
     .sendRawRequest(privateSignedTxHex, privateFor)
     .then(tx => {
-      console.log(tx);
-
       return tx.contractAddress;
     })
-    .catch(console.log);
+    .catch(error => error.message);
 }
 
 async function setTemp({ to, node, privateFor, temp}) {
@@ -81,7 +82,7 @@ async function setTemp({ to, node, privateFor, temp}) {
     temperatureMonitor.interface.find(x => x.name === 'set'),
     [temp],
   );
-  
+
   const rawTxHash = await node.txManager.storeRawRequest(encodedABI, node.TM_PK);
 
   const privateSignedTxHex = await serializeAndSign(node, {
@@ -89,13 +90,9 @@ async function setTemp({ to, node, privateFor, temp}) {
     data: `0x${rawTxHash}`,
   });
 
-  console.log('privateSignedTxHex', privateSignedTxHex);
-
   return node.txManager
     .sendRawRequest(privateSignedTxHex, privateFor)
     .then(tx => {
-      console.log(tx);
-
       return `${tx.status} - ${tx.blockHash}`;
     })
     .catch(error => error.message);
